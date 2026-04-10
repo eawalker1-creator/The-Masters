@@ -1,0 +1,410 @@
+app/page.tsx
+import React, { useEffect, useMemo, useState } from "react";
+import { RefreshCw, Trophy, Users, Wifi, WifiOff, ClipboardPaste } from "lucide-react";
+
+type TeamName = "Zoo" | "Axe" | "Muff" | "Snake";
+
+type PlayerScore = {
+  name: string;
+  toPar: number | null;
+  thru?: string;
+  status?: string;
+  position?: string;
+  round?: number | null;
+  lastUpdated?: string;
+  image?: string;
+};
+
+type Team = {
+  name: TeamName;
+  players: string[];
+};
+
+type TeamStanding = {
+  name: TeamName;
+  players: PlayerScore[];
+  counted: PlayerScore[];
+  total: number;
+  completedCount: number;
+};
+
+const TEAMS: Team[] = [
+  {
+    name: "Zoo",
+    players: ["Bryson DeChambeau", "Matt Fitzpatrick", "Justin Rose", "Viktor Hovland"],
+  },
+  {
+    name: "Axe",
+    players: ["Scottie Scheffler", "Cameron Young", "Jon Rahm", "Hideki Matsuyama"],
+  },
+  {
+    name: "Muff",
+    players: ["Rory McIlroy", "Tommy Fleetwood", "Jordan Spieth", "Patrick Reed"],
+  },
+  {
+    name: "Snake",
+    players: ["Xander Schauffele", "Ludvig Aberg", "Robert MacIntyre", "Russell Henley"],
+  },
+];
+
+const PLAYER_ALIASES: Record<string, string[]> = {
+  "Bryson DeChambeau": ["Bryson DeChambeau", "Bryson", "DeChambeau"],
+  "Matt Fitzpatrick": ["Matt Fitzpatrick", "Fitzpatrick", "Matt Fitz"],
+  "Justin Rose": ["Justin Rose", "Rose"],
+  "Viktor Hovland": ["Viktor Hovland", "Hovland"],
+  "Scottie Scheffler": ["Scottie Scheffler", "Scottie", "Scheffler"],
+  "Cameron Young": ["Cameron Young", "Cam Young", "Young"],
+  "Jon Rahm": ["Jon Rahm", "Rahm"],
+  "Hideki Matsuyama": ["Hideki Matsuyama", "Hideki", "Matsuyama"],
+  "Rory McIlroy": ["Rory McIlroy", "Rory", "McIlroy"],
+  "Tommy Fleetwood": ["Tommy Fleetwood", "Fleetwood"],
+  "Jordan Spieth": ["Jordan Spieth", "Spieth", "Speith"],
+  "Patrick Reed": ["Patrick Reed", "Reed"],
+  "Xander Schauffele": ["Xander Schauffele", "Xander", "Schauffele"],
+  "Ludvig Aberg": ["Ludvig Aberg", "Ludvig Åberg", "Aberg", "Åberg"],
+  "Robert MacIntyre": ["Robert MacIntyre", "Bob MacIntyre", "MacIntyre"],
+  "Russell Henley": ["Russell Henley", "Henley"],
+};
+
+const PLAYER_HEADSHOTS: Record<string, string> = {
+  "Bryson DeChambeau": "https://images.ctfassets.net/3mv54pzvptwz/3jAxlQXvFmEuP6CKcTgBgD/0e6351e9f6fe2cb7dc1585e6c52053df/bryson-dechambeau.png",
+  "Matt Fitzpatrick": "https://images.ctfassets.net/3mv54pzvptwz/1d2q3GRbD3yO1r4VkLq4Pt/b414bcf3d7a1b8cb2ab3c25a7441d6ef/matt-fitzpatrick.png",
+  "Justin Rose": "https://images.ctfassets.net/3mv54pzvptwz/20hx5G6NuWvH7VMs7J7ELM/90f0ad3f6b6c95e39cc98f4b731cb68b/justin-rose.png",
+  "Viktor Hovland": "https://images.ctfassets.net/3mv54pzvptwz/1Jxq8fLqCWHB2uVkFRfB0d/bd2c03459abbece4a8b77490ef35bf1f/viktor-hovland.png",
+  "Scottie Scheffler": "https://images.ctfassets.net/3mv54pzvptwz/1h1zHzmANFJkJ12M1mJnH9/19a0f770c70d0e64e7ceee5740c1f1d4/scottie-scheffler.png",
+  "Cameron Young": "https://images.ctfassets.net/3mv54pzvptwz/2WlYcdHmBvD2M8zHyv8s4A/9c507cc6d7087e28b3f975f2a450c930/cameron-young.png",
+  "Jon Rahm": "https://images.ctfassets.net/3mv54pzvptwz/3t8YHc8vuf2CbiCxan4xYj/3f663bf7cbea17be7e09fa3f58289f6a/jon-rahm.png",
+  "Hideki Matsuyama": "https://images.ctfassets.net/3mv54pzvptwz/7x0GWZrk56N0lTibB34W4n/5846346cdb5293f5d83f54fef0857d3a/hideki-matsuyama.png",
+  "Rory McIlroy": "https://images.ctfassets.net/3mv54pzvptwz/16Pq9X7zSo0R9u1DgUKM4d/010a3816a0e63ca236d5091a3810d64d/rory-mcilroy.png",
+  "Tommy Fleetwood": "https://images.ctfassets.net/3mv54pzvptwz/4s1I2M8I3hE2I7toz6k2Y7/916dcb3a3bbbd4c9f63db0eb9b5b2df4/tommy-fleetwood.png",
+  "Jordan Spieth": "https://images.ctfassets.net/3mv54pzvptwz/2QmFhjiLPn0Vgwg1y8lVg3/5fef9af438df6790f7abf2b2952b9d66/jordan-spieth.png",
+  "Patrick Reed": "https://images.ctfassets.net/3mv54pzvptwz/5UP2UOM2N6gY4Vg0TxQ7EO/f7b84f3d70715cff4f9e0e024d271f77/patrick-reed.png",
+  "Xander Schauffele": "https://images.ctfassets.net/3mv54pzvptwz/4JccX1xymDIczDMMEub4jC/f1ca8d07a171412e35dcb44f5af73f79/xander-schauffele.png",
+  "Ludvig Aberg": "https://images.ctfassets.net/3mv54pzvptwz/79tv7EIOXGE2HhVpy8ofr7/b5a3e2d64e8b3e40d767785d509ca0d8/ludvig-aberg.png",
+  "Robert MacIntyre": "https://images.ctfassets.net/3mv54pzvptwz/3qg1FK28UQt1BY8Hec1vg2/6fe7156c8d51724d80db8d1160b2bf1e/robert-macintyre.png",
+  "Russell Henley": "https://images.ctfassets.net/3mv54pzvptwz/25xw0lrAEtc5FWcrYdkRZq/2f0a76f98bf4f4ffb2bdf93940d5f280/russell-henley.png",
+};
+
+const API_ENDPOINT = "/api/masters-leaderboard";
+
+const MOCK_LEADERBOARD: PlayerScore[] = [
+  { name: "Justin Rose", toPar: -4, thru: "15", status: "Live", position: "1" },
+  { name: "Scottie Scheffler", toPar: -3, thru: "14", status: "Live", position: "T2" },
+  { name: "Jon Rahm", toPar: -2, thru: "13", status: "Live", position: "T4" },
+  { name: "Rory McIlroy", toPar: -2, thru: "12", status: "Live", position: "T4" },
+  { name: "Ludvig Aberg", toPar: -1, thru: "11", status: "Live", position: "T8" },
+  { name: "Xander Schauffele", toPar: -1, thru: "10", status: "Live", position: "T8" },
+  { name: "Hideki Matsuyama", toPar: 0, thru: "12", status: "Live", position: "T15" },
+  { name: "Tommy Fleetwood", toPar: 0, thru: "11", status: "Live", position: "T15" },
+  { name: "Jordan Spieth", toPar: 1, thru: "9", status: "Live", position: "T28" },
+  { name: "Patrick Reed", toPar: 1, thru: "10", status: "Live", position: "T28" },
+  { name: "Bryson DeChambeau", toPar: 1, thru: "8", status: "Live", position: "T28" },
+  { name: "Viktor Hovland", toPar: 2, thru: "10", status: "Live", position: "T39" },
+  { name: "Matt Fitzpatrick", toPar: 2, thru: "9", status: "Live", position: "T39" },
+  { name: "Russell Henley", toPar: 2, thru: "8", status: "Live", position: "T39" },
+  { name: "Robert MacIntyre", toPar: 3, thru: "8", status: "Live", position: "T51" },
+  { name: "Cameron Young", toPar: 4, thru: "7", status: "Live", position: "T60" },
+].map((p) => ({ ...p, image: PLAYER_HEADSHOTS[p.name] }));
+
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function matchCanonicalName(rawName: string) {
+  const normalized = normalize(rawName);
+
+  for (const [canonical, aliases] of Object.entries(PLAYER_ALIASES)) {
+    if (aliases.some((alias) => normalize(alias) === normalized)) return canonical;
+  }
+
+  for (const [canonical, aliases] of Object.entries(PLAYER_ALIASES)) {
+    if (aliases.some((alias) => normalized.includes(normalize(alias)) || normalize(alias).includes(normalized))) {
+      return canonical;
+    }
+  }
+
+  return rawName;
+}
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function formatToPar(value: number | null) {
+  if (value === null || value === undefined) return "—";
+  if (value === 0) return "E";
+  return value > 0 ? `+${value}` : `${value}`;
+}
+
+function scoreSortValue(p: PlayerScore) {
+  return p.toPar === null ? 999 : p.toPar;
+}
+
+function parsePossibleNumber(value: any) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "E") return 0;
+    if (trimmed.startsWith("+")) return Number(trimmed.slice(1));
+    if (trimmed.startsWith("-")) return Number(trimmed);
+    const n = Number(trimmed);
+    return Number.isNaN(n) ? null : n;
+  }
+  return null;
+}
+
+function computeStandings(scoreMap: Record<string, PlayerScore>): TeamStanding[] {
+  return TEAMS.map((team) => {
+    const players = team.players.map((name) =>
+      scoreMap[name] ?? { name, toPar: null, status: "Waiting", image: PLAYER_HEADSHOTS[name] }
+    );
+    const sorted = [...players].sort((a, b) => scoreSortValue(a) - scoreSortValue(b));
+    const counted = sorted.slice(0, 2);
+    const total = counted.reduce((sum, p) => sum + (p.toPar ?? 0), 0);
+
+    return {
+      name: team.name,
+      players,
+      counted,
+      total,
+      completedCount: players.filter((p) => p.toPar !== null).length,
+    };
+  }).sort((a, b) => a.total - b.total);
+}
+
+function extractArray(input: unknown): any[] {
+  if (Array.isArray(input)) return input;
+  if (!input || typeof input !== "object") return [];
+  const obj = input as any;
+  return obj.leaderboardRows ?? obj.leaderboard ?? obj.players ?? obj.data ?? obj.results ?? [];
+}
+
+function parseApiResponse(input: unknown): PlayerScore[] {
+  const arr = extractArray(input);
+
+  return arr.map((item: any) => {
+    const combinedName = [item.firstName, item.lastName].filter(Boolean).join(" ").trim();
+    const rawName = combinedName || item.name || item.playerName || item.player_name || item.player || "Unknown";
+    const canonical = matchCanonicalName(String(rawName));
+    return {
+      name: canonical,
+      toPar: parsePossibleNumber(
+        item.toPar ?? item.to_par ?? item.total_to_par ?? item.score_relative_to_par ?? item.scoreToPar ?? item.total ?? item.score
+      ),
+      thru: String(item.thru ?? item.hole ?? item.currentHole ?? item.holesCompleted ?? item.holes_completed ?? "—"),
+      status: String(item.status ?? item.state ?? "Live"),
+      position: String(item.position ?? item.pos ?? "—"),
+      round: item.round ?? item.current_round ?? item.currentRound ?? null,
+      lastUpdated: new Date().toLocaleTimeString(),
+      image: item.image ?? PLAYER_HEADSHOTS[canonical],
+    };
+  });
+}
+
+function PlayerRow({ player, counted }: { player: PlayerScore; counted: boolean }) {
+  return (
+    <div
+      className={`rounded-2xl border px-3 py-3 flex items-center gap-3 ${
+        counted ? "bg-neutral-50 border-neutral-300" : "border-neutral-200 bg-white"
+      }`}
+    >
+      <img
+        src={player.image}
+        alt={player.name}
+        className="h-11 w-11 rounded-xl object-cover bg-neutral-200 shrink-0"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = "none";
+        }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="font-medium truncate text-sm sm:text-base">{player.name}</div>
+        <div className="text-xs sm:text-sm text-neutral-500 flex items-center gap-1.5 flex-wrap">
+          <span>{player.position ?? "—"}</span>
+          <span>•</span>
+          <span>{player.status ?? "—"}</span>
+          <span>•</span>
+          <span>Thru {player.thru ?? "—"}</span>
+        </div>
+      </div>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="text-xl sm:text-2xl font-semibold whitespace-nowrap">{formatToPar(player.toPar)}</div>
+        <div className={`text-xs px-2 py-1 rounded-full border ${counted ? "bg-black text-white border-black" : "text-neutral-600"}`}>
+          {counted ? "Counting" : "Bench"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeamCard({ team, place }: { team: TeamStanding; place: number }) {
+  return (
+    <div className="rounded-3xl shadow-sm border border-neutral-200 overflow-hidden bg-white">
+      <div className="p-4 pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-lg sm:text-xl font-semibold flex items-center gap-2">
+              {place === 1 ? <Trophy className="w-5 h-5" /> : null}
+              {place}. {team.name}
+            </div>
+            <div className="text-xs sm:text-sm text-neutral-500 mt-1">
+              Best 2 scores count • {team.completedCount}/4 loaded
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-[10px] sm:text-xs uppercase tracking-wide text-neutral-500">Team total</div>
+            <div className="text-3xl sm:text-4xl font-semibold leading-none mt-1">{formatToPar(team.total)}</div>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2.5 px-4 pb-4">
+        {team.players
+          .slice()
+          .sort((a, b) => scoreSortValue(a) - scoreSortValue(b))
+          .map((player) => (
+            <PlayerRow
+              key={player.name}
+              player={player}
+              counted={team.counted.some((p) => p.name === player.name)}
+            />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+export default function MastersPoolDashboard() {
+  const [data, setData] = useState<PlayerScore[]>(MOCK_LEADERBOARD);
+  const [error, setError] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<string>(new Date().toLocaleTimeString());
+  const [liveMode, setLiveMode] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const refreshFromApi = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(API_ENDPOINT, { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error(`API request failed: ${res.status}`);
+      }
+      const json = await res.json();
+      const parsedPlayers = parseApiResponse(json);
+      if (!parsedPlayers.length) {
+        throw new Error("No player rows found in API response.");
+      }
+      setData(parsedPlayers);
+      setError(null);
+      setLiveMode(true);
+      setLastSync(new Date().toLocaleTimeString());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to refresh scores.");
+      setLiveMode(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshFromApi();
+    const id = window.setInterval(refreshFromApi, 30000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const scoreMap = useMemo(() => {
+    const mapped: Record<string, PlayerScore> = {};
+    data.forEach((player) => {
+      const canonical = matchCanonicalName(player.name);
+      mapped[canonical] = { ...player, name: canonical, image: player.image ?? PLAYER_HEADSHOTS[canonical] };
+    });
+    return mapped;
+  }, [data]);
+
+  const standings = useMemo(() => computeStandings(scoreMap), [scoreMap]);
+  const leader = standings[0];
+
+  return (
+    <div className="min-h-screen bg-neutral-50 text-neutral-950" style={{ paddingBottom: "max(24px, env(safe-area-inset-bottom))" }}>
+      <div className="sticky top-0 z-20 border-b bg-neutral-50/95 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 sm:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-2xl sm:text-3xl font-semibold tracking-tight">Masters Pool</div>
+              <div className="text-sm text-neutral-600 truncate">Hosted live dashboard with automatic RapidAPI refresh every 30 seconds</div>
+            </div>
+            <button
+              onClick={refreshFromApi}
+              className="shrink-0 rounded-xl border bg-white px-3 py-2 text-sm font-medium"
+              disabled={loading}
+            >
+              <RefreshCw className={`w-4 h-4 inline-block mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 py-4 sm:px-6 space-y-5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="rounded-3xl shadow-sm border bg-white p-4">
+            <div className="text-[10px] sm:text-xs uppercase tracking-wide text-neutral-500">Leader</div>
+            <div className="text-lg sm:text-2xl font-semibold mt-1 truncate">{leader?.name ?? "—"}</div>
+            <div className="text-sm text-neutral-500 mt-1">{leader ? formatToPar(leader.total) : "—"}</div>
+          </div>
+          <div className="rounded-3xl shadow-sm border bg-white p-4">
+            <div className="text-[10px] sm:text-xs uppercase tracking-wide text-neutral-500">Feed</div>
+            <div className="flex items-center gap-2 text-sm sm:text-lg font-medium mt-1">
+              {liveMode ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+              {liveMode ? "Live API" : "Offline / mock"}
+            </div>
+            <div className="text-xs sm:text-sm text-neutral-500 mt-1 truncate">Sync {lastSync}</div>
+          </div>
+          <div className="rounded-3xl shadow-sm border bg-white p-4">
+            <div className="text-[10px] sm:text-xs uppercase tracking-wide text-neutral-500">Teams tracked</div>
+            <div className="text-lg sm:text-2xl font-semibold mt-1">{TEAMS.length}</div>
+            <div className="text-xs sm:text-sm text-neutral-500 mt-1">Best 2 scores count</div>
+          </div>
+          <div className="rounded-3xl shadow-sm border bg-white p-4 col-span-2 lg:col-span-1">
+            <div className="text-[10px] sm:text-xs uppercase tracking-wide text-neutral-500">Golfers</div>
+            <div className="text-lg sm:text-2xl font-semibold mt-1">16</div>
+            <div className="text-xs sm:text-sm text-neutral-500 mt-1 flex items-center gap-2"><Users className="w-4 h-4" /> Pool loaded</div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl shadow-sm border bg-white p-4 text-sm text-neutral-700">
+          <div className="font-semibold">Data source</div>
+          <div className="text-neutral-600 mt-1">
+            {liveMode ? "Scores are coming from your hosted backend route and refreshing automatically." : "If the API route is not deployed yet, the dashboard falls back to mock data."}
+          </div>
+          <div className="mt-2 text-neutral-500">
+            Frontend endpoint: <span className="font-mono">{API_ENDPOINT}</span>
+          </div>
+          {error ? <div className="rounded-2xl border border-red-200 bg-red-50 text-red-700 p-3 text-sm mt-3">{error}</div> : null}
+        </div>
+
+        <div className="rounded-3xl shadow-sm border bg-white p-4 text-sm text-neutral-700">
+          <div className="font-semibold mb-2">How to use this</div>
+          <div>1. Deploy this page inside a Next.js app.</div>
+          <div>2. Add a backend route at <span className="font-mono">/api/masters-leaderboard</span>.</div>
+          <div>3. Put your RapidAPI key on the server, not in the browser.</div>
+          <div>4. The dashboard will refresh automatically every 30 seconds.</div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5">
+          {standings.map((team, index) => (
+            <TeamCard key={team.name} team={team} place={index + 1} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
